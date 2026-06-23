@@ -37,11 +37,17 @@ if [ ! -d "venv" ]; then
     python3 -m venv venv
 fi
 
-# Detect venv activation path (Windows vs Linux)
-if [ -f "venv/Scripts/activate" ]; then
-    VENV_ACTIVATE="venv/Scripts/activate"
-else
+# Detect venv activation path and check platform compatibility
+if [ "$(uname -s)" = "Linux" ] && [ -d "venv/Scripts" ]; then
+    echo "  Removing Windows venv for Linux compatibility..."
+    rm -rf venv
+    python3 -m venv venv
+fi
+
+if [ -f "venv/bin/activate" ]; then
     VENV_ACTIVATE="venv/bin/activate"
+elif [ -f "venv/Scripts/activate" ]; then
+    VENV_ACTIVATE="venv/Scripts/activate"
 fi
 
 echo "  Installing Python dependencies..."
