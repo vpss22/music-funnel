@@ -36,6 +36,9 @@ import {
   BookOpen,
   Settings,
   BarChart3,
+  Youtube,
+  Instagram,
+  ExternalLink,
 } from 'lucide-react';
 import type { Lead, LeadScore, AppConfig } from '@/types';
 
@@ -77,8 +80,23 @@ export default function Dashboard() {
   const [configLoading, setConfigLoading] = useState(true);
 
   const [aiMode, setAiMode] = useState(false);
-  const [apiKey, setApiKey] = useState('');
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem('mf_gemini_key') || '');
+  const [youtubeApiKey, setYoutubeApiKey] = useState(() => localStorage.getItem('mf_youtube_key') || '');
   const [selectedModel, setSelectedModel] = useState('');
+  const [searchQuery, setSearchQuery] = useState('Producer');
+  const [minSubs, setMinSubs] = useState('1000');
+  const [locationFilter, setLocationFilter] = useState('');
+
+  const [showSettings, setShowSettings] = useState(false);
+
+  // Persist keys to localStorage
+  useEffect(() => {
+    localStorage.setItem('mf_gemini_key', apiKey);
+  }, [apiKey]);
+
+  useEffect(() => {
+    localStorage.setItem('mf_youtube_key', youtubeApiKey);
+  }, [youtubeApiKey]);
 
   // Fetch app config (models)
   useEffect(() => {
@@ -114,6 +132,11 @@ export default function Dashboard() {
     try {
       const params = new URLSearchParams();
       params.append('mode', aiMode ? 'ai' : 'manual');
+      params.append('query', searchQuery);
+      params.append('min_subs', minSubs);
+      if (locationFilter) {
+        params.append('location', locationFilter);
+      }
       if (selectedModel) {
         params.append('model', selectedModel);
       }
@@ -121,6 +144,9 @@ export default function Dashboard() {
       const headers: HeadersInit = {};
       if (aiMode && apiKey) {
         headers['X-API-Key'] = apiKey;
+      }
+      if (youtubeApiKey) {
+        headers['X-YouTube-Key'] = youtubeApiKey;
       }
 
       const res = await fetch(`${API_BASE}/scan?${params.toString()}`, {
@@ -140,7 +166,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [aiMode, selectedModel, apiKey]);
+  }, [aiMode, selectedModel, apiKey, youtubeApiKey, searchQuery, minSubs, locationFilter]);
 
   const stats = {
     total: leads.length,
@@ -188,6 +214,15 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-col sm:flex-row gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search creators (e.g. UK Drill, Afrobeat)..."
+                  className="pl-9"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
               <Button
                 onClick={handleScan}
                 disabled={loading}
@@ -205,7 +240,72 @@ export default function Dashboard() {
                   </>
                 )}
               </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setShowSettings(!showSettings)}
+                className={showSettings ? 'bg-secondary' : ''}
+              >
+                <Settings className="w-4 h-4" />
+              </Button>
             </div>
+
+            {showSettings && (
+              <div className="p-4 rounded-lg border bg-slate-50/50 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="youtube-key" className="text-xs font-medium">YouTube Data API Key</Label>
+                    <Input
+                      id="youtube-key"
+                      type="password"
+                      placeholder="Paste YouTube API Key..."
+                      className="h-8 text-xs"
+                      value={youtubeApiKey}
+                      onChange={(e) => setYoutubeApiKey(e.target.value)}
+                    />
+                    <p className="text-[10px] text-muted-foreground">Used to fetch real creators from YouTube.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="gemini-key" className="text-xs font-medium">Gemini API Key (Optional)</Label>
+                    <Input
+                      id="gemini-key"
+                      type="password"
+                      placeholder="Paste Gemini API Key..."
+                      className="h-8 text-xs"
+                      value={apiKey}
+                      onChange={(e) => setApiKey(e.target.value)}
+                    />
+                    <p className="text-[10px] text-muted-foreground">Overrides server-side key for AI insights.</p>
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="min-subs" className="text-xs font-medium">Min Subscribers</Label>
+                    <Input
+                      id="min-subs"
+                      type="number"
+                      placeholder="0"
+                      className="h-8 text-xs"
+                      value={minSubs}
+                      onChange={(e) => setMinSubs(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="location-filter" className="text-xs font-medium">Location Filter</Label>
+                    <Input
+                      id="location-filter"
+                      placeholder="e.g. UK, US, London..."
+                      className="h-8 text-xs"
+                      value={locationFilter}
+                      onChange={(e) => setLocationFilter(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Quick Settings Row */}
             <div className="flex flex-wrap items-center gap-4 text-sm">
@@ -353,6 +453,34 @@ export default function Dashboard() {
                             <span className="text-muted-foreground">Subs:</span>
                             <span>{lead.subscribers.toLocaleString()}</span>
                           </div>
+                        </div>
+
+                        {/* Quick Links */}
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {lead.youtube_url && (
+                            <Button variant="outline" size="xs" className="h-7 text-[10px] gap-1 px-2" asChild>
+                              <a href={lead.youtube_url} target="_blank" rel="noopener noreferrer">
+                                <Youtube className="w-3 h-3 text-red-600" />
+                                YouTube
+                              </a>
+                            </Button>
+                          )}
+                          {lead.instagram_url && (
+                            <Button variant="outline" size="xs" className="h-7 text-[10px] gap-1 px-2" asChild>
+                              <a href={lead.instagram_url} target="_blank" rel="noopener noreferrer">
+                                <Instagram className="w-3 h-3 text-pink-600" />
+                                Instagram
+                              </a>
+                            </Button>
+                          )}
+                          {lead.linktree_url && (
+                            <Button variant="outline" size="xs" className="h-7 text-[10px] gap-1 px-2" asChild>
+                              <a href={lead.linktree_url} target="_blank" rel="noopener noreferrer">
+                                <ExternalLink className="w-3 h-3 text-green-600" />
+                                Bio Link
+                              </a>
+                            </Button>
+                          )}
                         </div>
 
                         {/* Gemini Insight */}

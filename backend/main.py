@@ -107,22 +107,30 @@ def get_config():
 def scan(
     mode: str = Query("manual", enum=["manual", "ai"]),
     model: str = Query("gemini-1.5-flash"),
+    query: str = Query("Producer"),
+    min_subs: int = Query(0),
+    location: Optional[str] = Query(None),
     api_key: Optional[str] = Header(None, alias="X-API-Key"),
+    youtube_key: Optional[str] = Header(None, alias="X-YouTube-Key"),
 ):
     """Scan for leads and score them using the selected mode.
 
     Args:
         mode: Scoring mode - ``manual`` (heuristic only) or ``ai`` (heuristic + Gemini).
         model: Gemini model ID when ``mode=ai`` (e.g., ``gemini-1.5-flash``).
+        query: Search query for finding creators.
+        min_subs: Minimum subscriber count filter.
+        location: Location filter (e.g., "US", "UK").
         api_key: Optional client API key passed via ``X-API-Key`` header.
+        youtube_key: Optional YouTube API key passed via ``X-YouTube-Key`` header.
 
     Returns:
         list: Scored lead objects with embedded ``score`` metadata.
     """
-    logger.info(f"Scan request: mode={mode}, model={model}, client_key={'present' if api_key else 'none'}")
+    logger.info(f"Scan request: mode={mode}, query={query}, min_subs={min_subs}, location={location}")
 
     try:
-        leads = scan_leads()
+        leads = scan_leads(query=query, youtube_key=youtube_key, min_subs=min_subs, location=location)
         use_ai = mode == "ai"
         results = []
 
@@ -131,6 +139,7 @@ def scan(
                 lead,
                 use_ai=use_ai,
                 model=model,
+                api_key=api_key,
             )
             results.append(lead)
 

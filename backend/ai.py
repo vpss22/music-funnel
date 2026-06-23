@@ -9,7 +9,6 @@ import os
 import logging
 from typing import Dict, Any, Optional
 
-import google.generativeai as genai
 from dotenv import load_dotenv
 
 # Configure module-level logging
@@ -18,47 +17,39 @@ logger = logging.getLogger(__name__)
 # Load environment variables from .env file
 load_dotenv()
 
+# Try to import google-genai
+try:
+    from google import genai
+    from google.genai import types
+    GEMINI_AVAILABLE = True
+except ImportError:
+    GEMINI_AVAILABLE = False
+    genai = None
 
-def get_gemini_client() -> Optional[Any]:
-    """Initialize Gemini with API key from environment.
-
-    Returns the configured ``genai`` module on success, or ``None`` if the
-    ``GEMINI_API_KEY`` environment variable is missing.
-
-    Returns:
-        Optional[Any]: Configured ``genai`` module, or ``None``.
-    """
-    key = os.getenv("GEMINI_API_KEY")
-    if not key:
-        logger.warning("GEMINI_API_KEY environment variable not set")
-        return None
-    genai.configure(api_key=key)
-    return genai
-
-
-def score_lead(lead: Dict[str, Any], use_ai: bool = False, model: str = "gemini-1.5-flash") -> Dict[str, Any]:
-    """Score a lead based on heuristics, optionally enriched with Gemini AI.
-
-    Heuristic scoring (0-8 scale):
-        - Instagram 404/broken link: +4
-        - Missing Linktree: +1
-        - Inactive account: +2
-        - >10,000 subscribers: +1
-
-    Tiers:
-        - HOT:   score >= 6 (high-priority broken funnel)
-        - WARM:  score >= 3 (moderate opportunity)
-        - COLD:  score < 3  (low priority)
-
+def get_gemini_client(api_key: Optional[str] = None) -> Optional[Any]:
+    """Initialize Gemini client.
+    
     Args:
-        lead: Lead dictionary from :func:`scraper.scan_leads`.
-        use_ai: Whether to call the Gemini API for additional insight.
-        model: Gemini model identifier (e.g., ``gemini-1.5-flash``).
-
-    Returns:
-        dict: Scoring result with ``score``, ``tier``, and ``ai_insight`` keys.
+        api_key: Optional API key. If not provided, uses GEMINI_API_KEY env var.
     """
-    # --- Base heuristic score (0-8 scale) ---
+    if not GEMINI_AVAILABLE:
+        logger.warning("google-genai package not installed. Run: pip install google-genai")
+        return None
+        
+    key = api_key or os.getenv("GEMINI_API_KEY")
+    if not key:
+        logger.warning("No Gemini API key available")
+        return None
+        
+    try:
+        return genai.Client(api_key=key)
+    except Exception as e:
+        logger.error(f"Failed to initialize Gemini client: {e}")
+        return None
+
+def score_lead(lead: Dict[str, Any], use_ai: bool = False, model: str = "gemini-1.5-flash", api_key: Optional[str] = None) -> Dict[str, Any]:
+    """Score a lead based on heuristics, optionally enriched with Gemini AI."""
+    # ... heuristic logic ...
     score = 0
     if lead.get("instagram_status") == "404":
         score += 4
@@ -69,7 +60,6 @@ def score_lead(lead: Dict[str, Any], use_ai: bool = False, model: str = "gemini-
     if lead.get("subscribers", 0) > 10000:
         score += 1
 
-    # --- Determine tier ---
     tier = "COLD"
     if score >= 6:
         tier = "HOT"
@@ -78,9 +68,8 @@ def score_lead(lead: Dict[str, Any], use_ai: bool = False, model: str = "gemini-
 
     ai_analysis: Optional[str] = None
 
-    # --- Optional Gemini AI enrichment ---
     if use_ai:
-        client = get_gemini_client()
+        client = get_gemini_client(api_key=api_key)
         if client:
             try:
                 prompt = f"""
@@ -99,16 +88,14 @@ Provide a brief insight (max 20 words) on why this lead might be valuable or a w
 Also suggest if the score should be adjusted and why.
 Format your response as a single concise paragraph.
 """
-                model_instance = genai.GenerativeModel(
-                    model_name=model,
-                    system_instruction=(
-                        "You are a music industry scout specializing in finding artists "
-                        "with broken marketing funnels. Be concise and actionable."
-                    ),
-                )
-                response = model_instance.generate_content(
-                    prompt,
-                    generation_config=genai.types.GenerationConfig(
+                response = client.models.generate_content(
+                    model=model,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        system_instruction=(
+                            "You are a music industry scout specializing in finding artists "
+                            "with broken marketing funnels. Be concise and actionable."
+                        ),
                         max_output_tokens=100,
                         temperature=0.7,
                     ),
@@ -119,9 +106,8 @@ Format your response as a single concise paragraph.
                 ai_analysis = f"Gemini Error: {str(exc)}"
                 logger.error(f"Gemini API error for lead '{lead.get('name')}': {exc}")
         else:
-            ai_analysis = "Gemini API key not configured. Set GEMINI_API_KEY environment variable."
-            logger.warning("Skipping AI insight: GEMINI_API_KEY not configured")
-
+            ai_analysis = "Gemini API key not configured."
+            
     return {
         "score": score,
         "tier": tier,

@@ -4,6 +4,20 @@ A tool to find broken creator funnels automatically. This project uses AI-powere
 
 This is a recreated version of the original [broken-links](https://github.com/vpss22/broken-links) repository, tailored for deployment on Google Cloud Platform using the **Google Gemini API**.
 
+## Quick Start (Local Testing)
+
+```bash
+# 1. Clone/copy the project
+cd music-funnel-gcp
+
+# 2. Start everything (backend + frontend)
+bash dev.sh
+```
+
+Then open http://localhost:3000 in your browser.
+
+**Prerequisites:** Python 3.11+, Node.js 20+, npm
+
 ## Architecture
 
 ```
@@ -98,20 +112,65 @@ That's it! The application will be available at `http://YOUR_VPS_IP`.
 
 ## Development
 
-### Running Locally
+### Running Locally (One Command)
 
-**Backend:**
+The easiest way to run locally for testing:
+
+```bash
+# Make sure dev.sh is executable
+chmod +x dev.sh
+
+# Start both backend and frontend
+bash dev.sh
+```
+
+This will:
+1. Create a Python virtual environment (if needed)
+2. Install Python dependencies
+3. Install npm packages (if needed)
+4. Start the backend on http://localhost:8000
+5. Start the frontend dev server on http://localhost:3000
+
+Press `Ctrl+C` to stop both services.
+
+### Running Manually (Backend)
+
 ```bash
 cd backend
-python -m venv venv
+python3 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
-# Set your Gemini API key
+# Set your Gemini API key (optional - AI mode won't work without it)
 export GEMINI_API_KEY="your_key_here"
 
 # Run the server
 uvicorn main:app --reload --port 8000
+```
+
+API docs: http://localhost:8000/api/docs
+
+### Running Manually (Frontend)
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The frontend will be at http://localhost:3000 with API proxy to the backend.
+
+### Testing the Backend
+
+```bash
+cd backend
+source venv/bin/activate
+
+# Start the server (in one terminal)
+uvicorn main:app --reload --port 8000
+
+# Run tests (in another terminal)
+python test_api.py
 ```
 
 The API docs will be available at `http://localhost:8000/api/docs`.

@@ -5,12 +5,16 @@ export interface LeadScore {
 }
 
 export interface Lead {
+  id?: string;
   name: string;
   instagram_status: string;
   linktree: boolean;
   inactive: boolean;
   subscribers: number;
   score: LeadScore;
+  youtube_url?: string;
+  instagram_url?: string;
+  linktree_url?: string;
 }
 
 export interface ScanConfig {
